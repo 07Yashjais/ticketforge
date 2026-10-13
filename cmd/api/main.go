@@ -10,13 +10,21 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/07Yashjais/ticketforge/internal/config"
 	"github.com/07Yashjais/ticketforge/internal/handler"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		// No configured logger yet, so use a plain one to report the failure.
+		slog.New(slog.NewJSONHandler(os.Stderr, nil)).Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
 	slog.SetDefault(logger)
 
 	r := chi.NewRouter()
@@ -27,7 +35,7 @@ func main() {
 	r.Get("/version", handler.VersionInfo)
 
 	srv := &http.Server{
-		Addr:              ":8080",
+		Addr:              cfg.HTTPAddr,
 		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second, // guards against slowloris clients
 		ReadTimeout:       15 * time.Second,
