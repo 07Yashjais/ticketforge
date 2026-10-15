@@ -5,6 +5,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/07Yashjais/ticketforge/internal/apikey"
 	"github.com/07Yashjais/ticketforge/internal/auth"
 	"github.com/07Yashjais/ticketforge/internal/handler"
 	appmw "github.com/07Yashjais/ticketforge/internal/middleware"
@@ -19,10 +20,19 @@ type Deps struct {
 	Auth    *auth.Service
 	Tokens  *auth.TokenManager
 	Tickets *ticket.Service
+	APIKeys *apikey.Service
 }
 
 // NewRouter wires every route.
 func NewRouter(d Deps) http.Handler {
+	// Convert to the interface only when set. A nil *apikey.Service stored in
+	// an interface is NOT a nil interface, and the middleware would then try
+	// to use it.
+	var keys appmw.APIKeyVerifier
+	if d.APIKeys != nil {
+		keys = d.APIKeys
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -35,12 +45,18 @@ func NewRouter(d Deps) http.Handler {
 	r.Post("/login", handler.Login(d.Auth))
 	r.Post("/refresh", handler.Refresh(d.Auth))
 
-	// Everything in this group requires a valid access token. The tenant used
-	// by the handlers comes from that token.
+	// Everything in this group requires a valid credential: a user's access
+	// token or an API key. The tenant used by the handlers comes from it.
 	r.Group(func(r chi.Router) {
-		r.Use(appmw.Authenticate(d.Tokens, nil))
+		r.Use(appmw.Authenticate(d.Tokens, keys))
 		r.Get("/me", handler.Me)
 		r.Route("/tickets", handler.NewTicketHandler(d.Tickets).Routes)
+
+		// Admin-only area.
+		r.Group(func(r chi.Router) {
+			r.Use(appmw.RequireRole(auth.RoleAdmin))
+			r.Route("/api-keys", handler.NewAPIKeyHandler(d.APIKeys).Routes)
+		})
 	})
 
 	return r

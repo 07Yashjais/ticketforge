@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/07Yashjais/ticketforge/internal/apikey"
 	"github.com/07Yashjais/ticketforge/internal/auth"
 	"github.com/07Yashjais/ticketforge/internal/config"
 	"github.com/07Yashjais/ticketforge/internal/db"
@@ -55,6 +56,7 @@ func main() {
 		Auth:    authSvc,
 		Tokens:  tokens,
 		Tickets: ticket.NewService(pool),
+		APIKeys: apikey.NewService(pool),
 	})
 
 	srv := &http.Server{
