@@ -13,9 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Roles stored in memberships.role.
-const roleOwner = "owner"
-
 // Returned when a unique constraint rejects the signup.
 var (
 	ErrSubdomainTaken = errors.New("subdomain already taken")
@@ -107,7 +104,7 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) (SignupResult, err
 	if _, err := q.CreateMembership(ctx, sqlc.CreateMembershipParams{
 		TenantID: tenant.ID,
 		UserID:   user.ID,
-		Role:     roleOwner,
+		Role:     RoleOwner,
 	}); err != nil {
 		return SignupResult{}, fmt.Errorf("creating membership: %w", err)
 	}
