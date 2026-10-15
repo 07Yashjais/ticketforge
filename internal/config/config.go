@@ -20,6 +20,15 @@ type Config struct {
 	DatabaseURL string
 	RedisAddr   string
 	SMTPAddr    string
+
+	// MigrationDatabaseURL is the owner role, used only by cmd/migrate to
+	// change the schema. The API must never use it (owners bypass RLS).
+	MigrationDatabaseURL string
+
+	// JWTSecret signs access tokens. It has no default on purpose: a default
+	// secret in source code would let anyone forge tokens. auth.NewTokenManager
+	// enforces the minimum length.
+	JWTSecret string
 }
 
 // Load builds a Config from the given lookup function (use os.Getenv in
@@ -38,6 +47,10 @@ func Load(getenv func(string) string) (Config, error) {
 		DatabaseURL: get("DATABASE_URL", ""),
 		RedisAddr:   get("REDIS_ADDR", "localhost:6379"),
 		SMTPAddr:    get("SMTP_ADDR", "localhost:1025"),
+
+		MigrationDatabaseURL: get("MIGRATE_DATABASE_URL", ""),
+
+		JWTSecret: get("JWT_SECRET", ""),
 	}
 
 	if cfg.Env != "development" && cfg.Env != "production" {
