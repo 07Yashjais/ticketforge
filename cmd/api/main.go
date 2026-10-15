@@ -10,13 +10,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/07Yashjais/ticketforge/internal/auth"
 	"github.com/07Yashjais/ticketforge/internal/config"
-	"github.com/07Yashjais/ticketforge/internal/handler"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/07Yashjais/ticketforge/internal/db"
+	"github.com/07Yashjais/ticketforge/internal/server"
+	"github.com/07Yashjais/ticketforge/internal/ticket"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// A missing .env file is fine; real environment variables still apply.
+	_ = godotenv.Load()
+
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		// No configured logger yet, so use a plain one to report the failure.
@@ -27,16 +32,34 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
 	slog.SetDefault(logger)
 
-	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
+	pool, err := db.NewPool(context.Background(), cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("connecting to database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
 
-	r.Get("/health", handler.Health)
-	r.Get("/version", handler.VersionInfo)
+	tokens, err := auth.NewTokenManager(cfg.JWTSecret)
+	if err != nil {
+		logger.Error("setting up tokens", "error", err)
+		os.Exit(1)
+	}
+	authSvc, err := auth.NewService(pool, tokens)
+	if err != nil {
+		logger.Error("setting up auth service", "error", err)
+		os.Exit(1)
+	}
+
+	router := server.NewRouter(server.Deps{
+		DB:      pool,
+		Auth:    authSvc,
+		Tokens:  tokens,
+		Tickets: ticket.NewService(pool),
+	})
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           r,
+		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second, // guards against slowloris clients
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
