@@ -220,12 +220,32 @@ func TestTicketServiceErrors(t *testing.T) {
 	}
 }
 
-func TestDeleteReturnsNoContent(t *testing.T) {
-	svc := &fakeTickets{}
-	id := uuid.New()
-	rec := do(newTicketRouter(svc, testClaims()), "DELETE", "/tickets/"+id.String(), "")
-	if rec.Code != http.StatusNoContent || svc.id != id {
-		t.Fatalf("status %d, id %s", rec.Code, svc.id)
+func TestDeleteRequiresAdmin(t *testing.T) {
+	for _, tt := range []struct {
+		role   string
+		status int
+	}{
+		{auth.RoleMember, http.StatusForbidden},
+		{auth.RoleAdmin, http.StatusNoContent},
+		{auth.RoleOwner, http.StatusNoContent},
+	} {
+		t.Run(tt.role, func(t *testing.T) {
+			claims := testClaims()
+			claims.Role = tt.role
+			svc := &fakeTickets{}
+			id := uuid.New()
+
+			rec := do(newTicketRouter(svc, claims), "DELETE", "/tickets/"+id.String(), "")
+			if rec.Code != tt.status {
+				t.Fatalf("status = %d, want %d", rec.Code, tt.status)
+			}
+			if tt.status == http.StatusForbidden && svc.calls != 0 {
+				t.Fatal("service must not be called when the role check fails")
+			}
+			if tt.status == http.StatusNoContent && svc.id != id {
+				t.Fatalf("deleted %s, want %s", svc.id, id)
+			}
+		})
 	}
 }
 
