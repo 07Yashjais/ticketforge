@@ -28,7 +28,21 @@ type Claims struct {
 	UserID   uuid.UUID
 	TenantID uuid.UUID
 	Role     string
+
+	// APIKeyID is set when the caller authenticated with an API key instead
+	// of a user's access token. UserID is then the user who created the key.
+	APIKeyID uuid.UUID
 }
+
+// IsAPIKey reports whether the caller is a machine using an API key.
+func (c Claims) IsAPIKey() bool { return c.APIKeyID != uuid.Nil }
+
+// APIKeyPrefix starts every API key, so a bearer credential can be told
+// apart from a JWT without trying to parse it.
+const APIKeyPrefix = "tfk_"
+
+// ErrInvalidAPIKey covers unknown, revoked and malformed API keys.
+var ErrInvalidAPIKey = errors.New("invalid API key")
 
 // jwtClaims is the wire format inside the token.
 type jwtClaims struct {

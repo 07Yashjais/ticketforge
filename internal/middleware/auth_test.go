@@ -48,7 +48,7 @@ func TestAuthenticate(t *testing.T) {
 				req.Header.Set("Authorization", tt.header)
 			}
 			rec := httptest.NewRecorder()
-			Authenticate(tt.parser)(next).ServeHTTP(rec, req)
+			Authenticate(tt.parser, nil)(next).ServeHTTP(rec, req)
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.wantStatus)

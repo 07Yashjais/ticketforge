@@ -80,7 +80,7 @@ func (p staticParser) Parse(string) (auth.Claims, error) { return p.claims, nil 
 func newTicketRouter(svc TicketService, claims auth.Claims) http.Handler {
 	r := chi.NewRouter()
 	r.Group(func(r chi.Router) {
-		r.Use(appmw.Authenticate(staticParser{claims}))
+		r.Use(appmw.Authenticate(staticParser{claims}, nil))
 		r.Route("/tickets", NewTicketHandler(svc).Routes)
 	})
 	return r

@@ -38,7 +38,7 @@ func NewRouter(d Deps) http.Handler {
 	// Everything in this group requires a valid access token. The tenant used
 	// by the handlers comes from that token.
 	r.Group(func(r chi.Router) {
-		r.Use(appmw.Authenticate(d.Tokens))
+		r.Use(appmw.Authenticate(d.Tokens, nil))
 		r.Get("/me", handler.Me)
 		r.Route("/tickets", handler.NewTicketHandler(d.Tickets).Routes)
 	})
