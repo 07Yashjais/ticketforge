@@ -46,7 +46,8 @@ func (h *TicketHandler) Routes(r chi.Router) {
 	r.Route("/{id}", func(r chi.Router) {
 		r.Get("/", h.get)
 		r.Patch("/", h.update)
-		r.Delete("/", h.delete)
+		// Deleting is destructive and irreversible: admins and owners only.
+		r.With(appmw.RequireRole(auth.RoleAdmin)).Delete("/", h.delete)
 		r.Post("/comments", h.addComment)
 		r.Get("/comments", h.listComments)
 	})
