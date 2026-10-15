@@ -12,9 +12,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/07Yashjais/ticketforge/internal/apikey"
 	"github.com/07Yashjais/ticketforge/internal/auth"
 	"github.com/07Yashjais/ticketforge/internal/server"
 	"github.com/07Yashjais/ticketforge/internal/ticket"
+	"github.com/google/uuid"
 )
 
 const (
@@ -54,6 +56,7 @@ func newTestServer(t *testing.T) *testServer {
 		Auth:    authSvc,
 		Tokens:  tokens,
 		Tickets: ticket.NewService(appPool),
+		APIKeys: apikey.NewService(appPool),
 	}))
 	t.Cleanup(srv.Close)
 	return &testServer{Server: srv, auth: authSvc}
@@ -73,6 +76,36 @@ func (s *testServer) newTenant(t *testing.T, label string) tenantUser {
 		t.Fatalf("login %s: %v", label, err)
 	}
 	return tenantUser{SignupResult: res, Token: pair.AccessToken}
+}
+
+// addUser creates another user in tenant t with the given role and logs them
+// in. Invitations don't exist yet, so the rows are seeded as the owner role.
+func (s *testServer) addUser(t *testing.T, tenant tenantUser, role string) tenantUser {
+	t.Helper()
+	ctx := testCtx(t)
+	email := role + "-" + unique(t) + "@" + tenant.Subdomain + ".test"
+
+	hash, err := auth.HashPassword(testPassword)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	var userID uuid.UUID
+	if err := ownerPool.QueryRow(ctx,
+		`INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id`, email, hash).Scan(&userID); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if _, err := ownerPool.Exec(ctx,
+		`INSERT INTO memberships (tenant_id, user_id, role) VALUES ($1, $2, $3)`, tenant.TenantID, userID, role); err != nil {
+		t.Fatalf("insert membership: %v", err)
+	}
+
+	pair, err := s.auth.Login(ctx, auth.LoginInput{Subdomain: tenant.Subdomain, Email: email, Password: testPassword})
+	if err != nil {
+		t.Fatalf("login %s: %v", role, err)
+	}
+	u := tenant
+	u.UserID, u.Email, u.Token = userID, email, pair.AccessToken
+	return u
 }
 
 // call sends a JSON request and returns the status and decoded JSON body
