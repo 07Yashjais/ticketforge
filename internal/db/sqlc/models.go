@@ -9,6 +9,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         uuid.UUID
+	TenantID   uuid.UUID
+	Name       string
+	Prefix     string
+	KeyHash    string
+	Role       string
+	CreatedBy  uuid.UUID
+	CreatedAt  pgtype.Timestamptz
+	LastUsedAt pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+}
+
 type Comment struct {
 	ID        uuid.UUID
 	TenantID  uuid.UUID
