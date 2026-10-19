@@ -9,6 +9,7 @@ import (
 	"github.com/07Yashjais/ticketforge/internal/auth"
 	"github.com/07Yashjais/ticketforge/internal/handler"
 	appmw "github.com/07Yashjais/ticketforge/internal/middleware"
+	"github.com/07Yashjais/ticketforge/internal/ratelimit"
 	"github.com/07Yashjais/ticketforge/internal/ticket"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -21,6 +22,11 @@ type Deps struct {
 	Tokens  *auth.TokenManager
 	Tickets *ticket.Service
 	APIKeys *apikey.Service
+
+	// Limiter and LimitFor enable per-tenant rate limiting. If either is nil,
+	// limiting is off (tests that are not about limits).
+	Limiter  ratelimit.Limiter
+	LimitFor appmw.LimitFunc
 }
 
 // NewRouter wires every route.
@@ -49,6 +55,9 @@ func NewRouter(d Deps) http.Handler {
 	// token or an API key. The tenant used by the handlers comes from it.
 	r.Group(func(r chi.Router) {
 		r.Use(appmw.Authenticate(d.Tokens, keys))
+		if d.Limiter != nil && d.LimitFor != nil {
+			r.Use(appmw.RateLimit(d.Limiter, d.LimitFor))
+		}
 		r.Get("/me", handler.Me)
 		r.Route("/tickets", handler.NewTicketHandler(d.Tickets).Routes)
 

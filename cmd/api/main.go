@@ -14,9 +14,11 @@ import (
 	"github.com/07Yashjais/ticketforge/internal/auth"
 	"github.com/07Yashjais/ticketforge/internal/config"
 	"github.com/07Yashjais/ticketforge/internal/db"
+	"github.com/07Yashjais/ticketforge/internal/ratelimit"
 	"github.com/07Yashjais/ticketforge/internal/server"
 	"github.com/07Yashjais/ticketforge/internal/ticket"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -51,12 +53,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	defer rdb.Close()
+
 	router := server.NewRouter(server.Deps{
 		DB:      pool,
 		Auth:    authSvc,
 		Tokens:  tokens,
 		Tickets: ticket.NewService(pool),
 		APIKeys: apikey.NewService(pool),
+		Limiter: ratelimit.NewRedis(rdb, "rl:"),
+		// One flat limit for every tenant for now; plan tiers come later.
+		LimitFor: func(auth.Claims) ratelimit.Limit { return ratelimit.Limit{Rate: 10, Burst: 20} },
 	})
 
 	srv := &http.Server{
